@@ -6,9 +6,9 @@ import { scoreResponse, scoreRound, getRexPackIntro, getRexPlayerIntro, getRexRo
 const API_KEY = import.meta.env.VITE_BTB_KEY || window.__BTB_KEY__ || "";
 
 // ─── PLAYER COUNT ────────────────────────────────────────────────────────────
-// Number of competing agents. Set to 2 while building/testing; bump back to 5
-// (the full main-stage roster) once everything is finalized.
-const PLAYER_COUNT = 5;
+// Number of competing agents. Set to 2 while building/testing; 3 is the
+// current main-stage roster.
+const PLAYER_COUNT = 3;
 
 const makePlayers = (n) => Array.from({ length: n }, (_, i) => ({ id: i, name: "" }));
 const makeScores = (n) => Array.from({ length: n }, () => 0);
