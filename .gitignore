@@ -4,3 +4,5 @@ dist
 .DS_Store
 public/config.js
 .vercel
+esbuild.err
+coverage

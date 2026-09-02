@@ -1,5 +1,51 @@
 # Beat The Bot — Changelog & Ops Notes
 
+## 2026-09-02 (Phase 0 — repo hygiene)
+
+Housekeeping only. **No application behavior changed**; the game plays exactly
+as it did before.
+
+- Deleted 19 dead files — the stale root `App.jsx` and `useElevenLabs.js`, the
+  unused `src/BeatTheBot*.jsx` / `Home` / `Result` / `Scoreboard` / `Select` /
+  `Setup` screens and their CSS modules, `src/data.js`, `src/voice.js`,
+  `src/hooks/App.jsx`, `src/data/gamePacks.backup.js`, and `esbuild.err`. All
+  recoverable from git history.
+- Moved `files.zip` to the Obsidian vault at `07 Projects/Beat the Bot App/`.
+  The two Fireside Chat `.docx` files were already filed under
+  `07 Projects/Refuel 2026/` as the "(Confirmed)" copies, so they were dropped
+  from the repo rather than duplicated.
+- Removed the dead `REX_SYSTEM_PROMPT` copy from `src/hooks/useScoring.js`.
+  **`api/score.js` is now the only rubric in the repo.**
+- Removed dead symbols from `src/App.jsx`: the unused `getRexTiebreaker`
+  import, the vestigial `API_KEY` const (scoring moved server-side long ago),
+  and the unused `abbreviateCoaching` helper. `roundHistory` and `pendingBlob`
+  are write-only state — the setters still run, so the state was kept and the
+  unread binding renamed to `_roundHistory` / `_pendingBlob` rather than
+  deleted, which would have removed a `setState` call and changed rendering.
+- Added ESLint 9 (flat config), Prettier, and Vitest. New scripts: `npm run
+  lint`, `npm run format`, `npm test`.
+- Added `.github/workflows/ci.yml` — runs lint, test, and build on pull
+  requests to `main`.
+- Added `test/gamePacks.test.js`, guarding the objection library's shape:
+  4 categories, 30 objections, required fields present, ids unique.
+
+### Known issues left open
+
+- **3 ESLint warnings** in `src/App.jsx` from the React Compiler rules
+  (`set-state-in-effect` at the `ScoreBar` width animation,
+  `preserve-manual-memoization` at `handleSkip`, `purity` for the `Math.random`
+  objection pick during render). Each is a real observation, but every fix
+  changes runtime behavior, which Phase 0 forbids. Address in Phase 1 when
+  `src/App.jsx` is split up.
+- **5 npm advisories remain** (3 moderate, 1 high, 1 critical), all in the dev
+  build toolchain, none shipped to users. `npm audit fix` cleared the
+  pre-existing `browserslist`, `nanoid`, and `postcss` advisories. The rest all
+  trace to `vite@5` -> `esbuild<=0.24.2`, and the only fix is `vite@8` plus
+  `vitest@4` — three majors on the app's build tool. Per the Phase 0
+  instruction, noted rather than forced. The `critical` is Vitest's UI server
+  (`@vitest/ui` is not installed and `--ui` is never run) and the `esbuild`
+  advisory affects the dev server only, so neither is reachable in production.
+
 ## 2026-06-17 (scoring calibration)
 
 - Recalibrated the live rubric in `api/score.js` — these are judged as **live,

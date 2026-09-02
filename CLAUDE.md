@@ -15,8 +15,10 @@ Obsidian vault at:
 /Users/2018mac/Documents/Grizzard 🧠/07 Projects/Beat the Bot App/
 ```
 
-The `Beat the Bot App — Project Hub.md` note in that folder is the plain-English
-project overview. **The repo copies are authoritative** — edit here, then tell
+That folder is this project's own vault project folder — file anything that
+belongs to Beat the Bot there, not under `07 Projects/Refuel 2026/`, which is a
+past event. The `Beat the Bot App — Project Hub.md` note in that folder is the
+plain-English project overview. **The repo copies are authoritative** — edit here, then tell
 Gus so the vault mirror can be re-synced. Never treat a vault note as the spec
 of record, and never write to the iCloud vault `ERA Grizzard 🧠`, which is
 being disconnected.
@@ -40,7 +42,7 @@ Leesburg, Clermont, The Villages, Downtown Orlando, Daytona.
 - React 18 + Vite 5, no router, no state library, no TypeScript
 - Styling: one giant template-literal CSS string at the bottom of `src/App.jsx`
   (the `CSS` const, ~550 lines) injected into a `<style>` tag
-- Serverless: Vercel functions in `/api` (Node, CommonJS-style default export)
+- Serverless: Vercel functions in `/api` (Node, ESM `export default handler`)
 - Voice: ElevenLabs TTS + STT (`scribe_v1`), browser Web Speech API fallback
 - Scoring: Anthropic Messages API, model `claude-sonnet-4-6`
 - Host: Vercel project `beat-the-bot-2`, `https://beat-the-bot-2.vercel.app`
@@ -54,10 +56,19 @@ npm run dev        # Vite dev server. /api routes do NOT run — use `vercel dev
 npm run build      # production build to dist/
 npm run preview    # serve the build
 vercel dev         # dev server WITH /api serverless functions
+
+npm run lint       # ESLint 9, flat config in eslint.config.js
+npm run lint:fix   # ESLint with --fix
+npm run format     # Prettier write
+npm test           # Vitest, single run
+npm run test:watch # Vitest, watch mode
 ```
 
-There is **no test suite and no linter configured**. If you add tests, add the
-script to `package.json` and note it here.
+Lint, test, and build also run in CI on every pull request to `main`
+(`.github/workflows/ci.yml`). `npm run lint` currently exits clean with **3
+deliberate warnings** from the React Compiler rules in `src/App.jsx`; they are
+deferred to Phase 1 because fixing them changes runtime behavior. Do not
+silence them.
 
 ## File map — current state
 
@@ -75,24 +86,36 @@ Active:
 | `index.html` | Loads `/config.js` then `/src/main.jsx`. Google Fonts: DM Sans, DM Mono, Space Grotesk |
 | `vercel.json` | SPA rewrite, everything but `/api/*` to `index.html` |
 
-**Dead code — do not edit, do not import, delete when you touch the area:**
+Also active:
 
-`App.jsx` (repo root, 52KB), `src/BeatTheBot.jsx`, `src/BeatTheBot_2.jsx`,
-`src/Home.jsx`, `src/Result.jsx`, `src/Scoreboard.jsx`, `src/Select.jsx`,
-`src/Setup.jsx` and their `.module.css` files, `src/data.js`, `src/voice.js`,
-`src/hooks/App.jsx`, `src/data/gamePacks.backup.js`, `useElevenLabs.js` (repo
-root), `esbuild.err`, `files.zip`, the two `.docx` files, `dist/`.
+| Path | What it is |
+|---|---|
+| `eslint.config.js` | ESLint 9 flat config. Separate blocks for `src/` (browser), `api/` (Node), configs and tests |
+| `vitest.config.js` | Vitest, jsdom environment |
+| `test/gamePacks.test.js` | Smoke test guarding the objection library's shape |
+| `.github/workflows/ci.yml` | Lint, test, build on pull requests to `main` |
 
-The two `.docx` files and `files.zip` are event leftovers, not code.
+**Dead code: cleared in Phase 0 (2026-09-02).** The stale root `App.jsx` and
+`useElevenLabs.js`, `src/BeatTheBot*.jsx`, the unused `Home` / `Result` /
+`Scoreboard` / `Select` / `Setup` screens and their `.module.css` files,
+`src/data.js`, `src/voice.js`, `src/hooks/App.jsx`,
+`src/data/gamePacks.backup.js`, and `esbuild.err` were all deleted. They remain
+in git history. `files.zip` and the two `.docx` event leftovers were moved out
+to the Obsidian vault. Do not restore any of them.
+
+Note `src/index.css` is **live** — `src/main.jsx` imports it. It was never dead.
+`public/Era_Logo_White.png` is unreferenced (only the `_Transparent` variant is
+used, at `src/App.jsx:624`) but was left in place pending Gus's call.
 
 ## Conventions that matter
 
 - **Rex's voice is the product.** Theatrical, savage but punching up, never
   cruel, PG. One-sentence roast, then real coaching. Never write flat corporate
   copy into a Rex line.
-- **Scoring lives in `api/score.js`.** The `REX_SYSTEM_PROMPT` copy in
-  `src/hooks/useScoring.js` is dead weight — it is never sent anywhere. Tune the
-  rubric server-side only. Deleting the client copy is a welcome cleanup.
+- **Scoring lives in `api/score.js`, and now only there.** The dead
+  `REX_SYSTEM_PROMPT` copy in `src/hooks/useScoring.js` was deleted in Phase 0;
+  a one-line comment points at the server file. Never reintroduce a client-side
+  copy of the rubric.
 - **9 is the hard ceiling. Never award a 10.** 7-8 is the normal landing spot
   for a solid answer, 8-9 for excellent. This is deliberate calibration, tuned
   live at the event. Do not "fix" it.
@@ -139,7 +162,11 @@ the Vercel git link once and pushes silently stopped deploying for two months.
 If a push does not produce a deployment, check Vercel Settings -> Git before
 assuming the build failed.
 
-GitHub reports 6 Dependabot advisories (2 high) on `main`. Unaddressed.
+Dependency advisories: Phase 0 ran `npm audit fix`, clearing the `browserslist`,
+`nanoid`, and `postcss` advisories. **5 remain** (3 moderate, 1 high, 1 critical),
+all dev-toolchain, none shipped to users — they all trace to `vite@5` ->
+`esbuild<=0.24.2` and need `vite@8` + `vitest@4` to clear, a three-major bump
+deliberately deferred. See `CHANGELOG.md` 2026-09-02.
 
 ## Guardrails
 

@@ -178,9 +178,17 @@ Do:
 1. Delete the dead files listed in `CLAUDE.md`. They are in git history if
    anyone ever wants them back.
 2. Move `Fireside Chat Questions - For Chris.docx`, `Fireside Chat Talking
-   Points - Refined.docx`, and `files.zip` out of the repo. They are Refuel
-   event documents, not code. They belong in the Obsidian vault under
-   `07 Projects/Refuel 2026/`.
+   Points - Refined.docx`, and `files.zip` out of the repo. They are event
+   leftovers, not code, and belong in the Obsidian vault.
+
+   **Destination corrected 2026-09-02 by Gus.** This project owns its own vault
+   project folder at `07 Projects/Beat the Bot App/` — file repo leftovers
+   there, not under `07 Projects/Refuel 2026/`. Refuel 2026 was a past event;
+   Beat the Bot is now a training application being built for the team and
+   possibly for outside subscribers, so it keeps its own project folder.
+   The two Fireside Chat documents were already filed under Refuel 2026 as
+   `Refuel 2026 - Fireside Chat ... (Confirmed).docx`, so only `files.zip`
+   needed a new home.
 3. Delete `esbuild.err` and add it to `.gitignore`.
 4. Add ESLint and Prettier with a minimal React config. Add `npm run lint`.
 5. Add Vitest with one smoke test so the harness exists. Add `npm test`.

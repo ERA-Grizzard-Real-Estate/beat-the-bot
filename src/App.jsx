@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { GAME_PACKS } from "./data/gamePacks";
 import { speakText, stopSpeaking, transcribeAudio, REX_VOICE_ID, COACH_VOICE_ID, CHALLENGER_VOICE_IDS } from "./hooks/useElevenLabs";
-import { scoreResponse, scoreRound, getRexPackIntro, getRexPlayerIntro, getRexRoundWinner, getRexChampion, getRexTiebreaker, getRexHandoffQuip, getRexGradingIntro, getRexGradingFiller, getRexBanter } from "./hooks/useScoring";
-
-const API_KEY = import.meta.env.VITE_BTB_KEY || window.__BTB_KEY__ || "";
+import { scoreResponse, scoreRound, getRexPackIntro, getRexPlayerIntro, getRexRoundWinner, getRexChampion, getRexHandoffQuip, getRexGradingIntro, getRexGradingFiller, getRexBanter } from "./hooks/useScoring";
 
 // ─── PLAYER COUNT ────────────────────────────────────────────────────────────
 // Number of competing agents. Set to 2 while building/testing; 3 is the
@@ -12,15 +10,6 @@ const PLAYER_COUNT = 3;
 
 const makePlayers = (n) => Array.from({ length: n }, (_, i) => ({ id: i, name: "" }));
 const makeScores = (n) => Array.from({ length: n }, () => 0);
-
-// Speak only the first couple of sentences of a longer coaching block —
-// keeps the grading reveal moving (full coaching still shows on screen).
-function abbreviateCoaching(text, maxSentences = 2) {
-  if (!text) return "";
-  const parts = text.match(/[^.!?]+[.!?]+/g);
-  if (!parts) return text;
-  return parts.slice(0, maxSentences).join(" ").trim();
-}
 
 // ─── PHASE CONSTANTS ───────────────────────────────────────────────────────────
 const PHASE = {
@@ -146,7 +135,7 @@ export default function App() {
   const [phase, setPhase] = useState(PHASE.SPLASH);
   const [players, setPlayers] = useState(() => makePlayers(PLAYER_COUNT));
   const [scores, setScores] = useState(() => makeScores(PLAYER_COUNT));
-  const [roundHistory, setRoundHistory] = useState([]); // [{packId, roundId, results:[{playerId,score,roast,coaching}]}]
+  const [_roundHistory, setRoundHistory] = useState([]); // [{packId, roundId, results:[{playerId,score,roast,coaching}]}]
   const [currentRound, setCurrentRound] = useState(0); // 0-3
   const [selectedPackId, setSelectedPackId] = useState(null);
   const [selectedRoundIndex, setSelectedRoundIndex] = useState(null);
@@ -161,7 +150,7 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [pendingBlob, setPendingBlob] = useState(null); // blob waiting for confirm
+  const [_pendingBlob, setPendingBlob] = useState(null); // blob waiting for confirm
 
   // ── Sound check state ──
   const [scSpeakerStatus, setScSpeakerStatus] = useState("idle"); // idle | playing | pass | fail
@@ -291,7 +280,7 @@ export default function App() {
 
       setLiveTranscript("");
       setIsRecording(true);
-    } catch (err) {
+    } catch {
       setStatusMsg("Microphone access denied. Please allow mic access.");
     }
   };
