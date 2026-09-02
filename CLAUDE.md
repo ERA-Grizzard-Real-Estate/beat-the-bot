@@ -1,0 +1,164 @@
+# CLAUDE.md — Beat the Bot
+
+Context for Claude Code working in this repo. Read this first, then the
+handover docs:
+
+- `docs/PRODUCTION-HANDOVER.md` — the build plan. Current-state audit, target
+  architecture, 11 phases with acceptance criteria, open questions, risks.
+- `docs/schema.sql` — Neon Postgres schema, run as migration 0001.
+- `docs/API-CONTRACTS.md` — every endpoint's request and response shape.
+
+**Vault mirror.** These four docs are also saved as readable notes in Gus's
+Obsidian vault at:
+
+```
+/Users/2018mac/Documents/Grizzard 🧠/07 Projects/Beat the Bot App/
+```
+
+The `Beat the Bot App — Project Hub.md` note in that folder is the plain-English
+project overview. **The repo copies are authoritative** — edit here, then tell
+Gus so the vault mirror can be re-synced. Never treat a vault note as the spec
+of record, and never write to the iCloud vault `ERA Grizzard 🧠`, which is
+being disconnected.
+
+## What this is
+
+Beat the Bot is a voice-driven objection-handling trainer for ERA Grizzard Real
+Estate agents. An AI game-show host named **Rex** reads a real estate objection
+aloud, the agent answers into a microphone, and Claude scores the answer 1-9
+with a roast plus coaching.
+
+It debuted 2026-06-18 as a main-stage segment at the Refuel 2026 event and now
+needs to become a real production application that agents use on their own.
+
+Mission framing for any copy you write: ERA Grizzard exists to make agents
+happier, healthier, and wealthier. Six Central Florida offices — Mount Dora,
+Leesburg, Clermont, The Villages, Downtown Orlando, Daytona.
+
+## Stack
+
+- React 18 + Vite 5, no router, no state library, no TypeScript
+- Styling: one giant template-literal CSS string at the bottom of `src/App.jsx`
+  (the `CSS` const, ~550 lines) injected into a `<style>` tag
+- Serverless: Vercel functions in `/api` (Node, CommonJS-style default export)
+- Voice: ElevenLabs TTS + STT (`scribe_v1`), browser Web Speech API fallback
+- Scoring: Anthropic Messages API, model `claude-sonnet-4-6`
+- Host: Vercel project `beat-the-bot-2`, `https://beat-the-bot-2.vercel.app`
+- Repo: `github.com/ERA-Grizzard-Real-Estate/beat-the-bot`, deploys on push to `main`
+
+## Commands
+
+```bash
+npm install
+npm run dev        # Vite dev server. /api routes do NOT run — use `vercel dev` for those
+npm run build      # production build to dist/
+npm run preview    # serve the build
+vercel dev         # dev server WITH /api serverless functions
+```
+
+There is **no test suite and no linter configured**. If you add tests, add the
+script to `package.json` and note it here.
+
+## File map — current state
+
+Active:
+
+| Path | What it is |
+|---|---|
+| `src/main.jsx` | React root, renders `App` in StrictMode |
+| `src/App.jsx` | **The entire application.** 1686 lines. Phase machine, all 14 screens, all game logic, all CSS |
+| `src/hooks/useElevenLabs.js` | `speakText`, `stopSpeaking`, `transcribeAudio`, voice IDs |
+| `src/hooks/useScoring.js` | Rex script lines + `scoreResponse`, `scoreRound`, `getRexBanter` (thin fetch wrappers over `/api/score`) |
+| `src/data/gamePacks.js` | `GAME_PACKS` — 4 categories, 30 objections. Generated from the JSON library, not hand-authored |
+| `api/score.js` | Serverless scorer. Holds the live rubric. Three modes: single, batch, banter |
+| `public/config.js` | Git-ignored. Sets `window.__EL_KEY__` (ElevenLabs). Must exist locally or voice is silent |
+| `index.html` | Loads `/config.js` then `/src/main.jsx`. Google Fonts: DM Sans, DM Mono, Space Grotesk |
+| `vercel.json` | SPA rewrite, everything but `/api/*` to `index.html` |
+
+**Dead code — do not edit, do not import, delete when you touch the area:**
+
+`App.jsx` (repo root, 52KB), `src/BeatTheBot.jsx`, `src/BeatTheBot_2.jsx`,
+`src/Home.jsx`, `src/Result.jsx`, `src/Scoreboard.jsx`, `src/Select.jsx`,
+`src/Setup.jsx` and their `.module.css` files, `src/data.js`, `src/voice.js`,
+`src/hooks/App.jsx`, `src/data/gamePacks.backup.js`, `useElevenLabs.js` (repo
+root), `esbuild.err`, `files.zip`, the two `.docx` files, `dist/`.
+
+The two `.docx` files and `files.zip` are event leftovers, not code.
+
+## Conventions that matter
+
+- **Rex's voice is the product.** Theatrical, savage but punching up, never
+  cruel, PG. One-sentence roast, then real coaching. Never write flat corporate
+  copy into a Rex line.
+- **Scoring lives in `api/score.js`.** The `REX_SYSTEM_PROMPT` copy in
+  `src/hooks/useScoring.js` is dead weight — it is never sent anywhere. Tune the
+  rubric server-side only. Deleting the client copy is a welcome cleanup.
+- **9 is the hard ceiling. Never award a 10.** 7-8 is the normal landing spot
+  for a solid answer, 8-9 for excellent. This is deliberate calibration, tuned
+  live at the event. Do not "fix" it.
+- Scoring weights: objective 40%, tone 30%, language 30%.
+- Batch (head-to-head) scoring forces distinct scores with no ties, anchored at
+  the top and stepping down (9/7/5, not 6/5/4).
+- Phase transitions are `await`ed against TTS completion. `speakText` resolves
+  its promise on `onended`, `onerror`, **and** on `stopSpeaking()` — that last
+  one is what makes the skip button work. Any new audio path must preserve it or
+  the game hangs.
+- Every `PLAYER_COUNT`-dependent thing keys off `players.length`. `PLAYER_COUNT`
+  in `src/App.jsx` is the single knob for roster size. Currently 3.
+- The game runs 3 rounds. `endRound` ends at `nextRound >= 3`. Note line ~65 has
+  an unrelated `score >= 4` color threshold — do not confuse the two.
+
+## Secrets
+
+- `ANTHROPIC_API_KEY` — Vercel env var only, read by `/api/score`. Never in the
+  client bundle, never in a committed file.
+- `SCORING_MODEL` — optional Vercel env var. Defaults to `claude-sonnet-4-6` in
+  code. This account does **not** have `claude-sonnet-4-20250514`; a 404 from
+  the scorer means a wrong model name.
+- ElevenLabs key — currently **client-side** in `public/config.js` as
+  `window.__EL_KEY__`. This is a known production gap; see the handover spec.
+- `public/config.js` is git-ignored. A fresh clone has no voice until you create
+  it. Never commit a real key into it.
+
+Never print a key value into chat, a commit, or a log line.
+
+## Deploy
+
+Push to `main`. Vercel auto-builds in ~10-20 seconds.
+
+```bash
+git commit -am "message" && git push
+```
+
+The local `vercel` CLI token has been expiring; `vercel --prod` may fail with
+"The specified token is not valid" until `vercel login` is run. Prefer the git
+push path.
+
+History note: the repo transfer from `ggrizzard/beat-the-bot` to the org broke
+the Vercel git link once and pushes silently stopped deploying for two months.
+If a push does not produce a deployment, check Vercel Settings -> Git before
+assuming the build failed.
+
+GitHub reports 6 Dependabot advisories (2 high) on `main`. Unaddressed.
+
+## Guardrails
+
+- This app is agent-facing training material for a licensed real estate
+  brokerage. Objection content must stay compliant with Florida license law
+  (Ch. 475) and fair housing. Do not generate objection or coaching content
+  that steers on a protected class. Flag anything contract-adjacent for broker
+  review rather than writing it as settled advice.
+- Do not invent market statistics in objection content. Cite Stellar MLS or
+  Florida Realtors SunStats when a figure is needed.
+- Confirm with Gus before any push to HubSpot (portal 481286), Airtable, Slack,
+  or any external system. This app does not currently touch any of them.
+- Agent names and scores are personnel-adjacent. Do not add anything that
+  emails, posts, or exports individual agent scores without an explicit ask.
+
+## Working style
+
+- Commit messages: imperative, one line, no scope prefix. Match the existing log
+  ("Set contestant roster to 3 players", "Cap scores at 9 — never award a 10").
+- Update `CHANGELOG.md` for anything a person would notice.
+- Prefer editing `src/App.jsx` surgically over rewriting it, until Phase 1 of the
+  handover spec splits it up on purpose.
