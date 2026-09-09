@@ -128,8 +128,14 @@ used, at `src/App.jsx:624`) but was left in place pending Gus's call.
   its promise on `onended`, `onerror`, **and** on `stopSpeaking()` — that last
   one is what makes the skip button work. Any new audio path must preserve it or
   the game hangs.
-- Every `PLAYER_COUNT`-dependent thing keys off `players.length`. `PLAYER_COUNT`
-  in `src/App.jsx` is the single knob for roster size. Currently 3.
+- **Roster size is chosen at runtime, 1 to 4**, on the `PLAYER_SETUP` screen.
+  Everything keys off `players.length`; `DEFAULT_PLAYER_COUNT` in `src/App.jsx`
+  is only the pre-selection, currently 3.
+- **Solo (1 player) is a distinct mode.** `isSolo` gates three things: batch
+  comparative scoring is skipped (it would inflate a lone answer to the 9
+  anchor), Rex uses the solo line sets instead of winner/champion lines, and
+  the category screen drops the "X WON" header. If you add anything that ranks
+  or compares players, check `isSolo` first.
 - The game runs 3 rounds. `endRound` ends at `nextRound >= 3`. Note line ~65 has
   an unrelated `score >= 4` color threshold — do not confuse the two.
 
