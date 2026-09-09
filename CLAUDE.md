@@ -39,7 +39,7 @@ Leesburg, Clermont, The Villages, Downtown Orlando, Daytona.
 
 ## Stack
 
-- React 18 + Vite 5, no router, no state library, no TypeScript
+- React 18 + Vite 8, no router, no state library, no TypeScript
 - Styling: one giant template-literal CSS string at the bottom of `src/App.jsx`
   (the `CSS` const, ~550 lines) injected into a `<style>` tag
 - Serverless: Vercel functions in `/api` (Node, ESM `export default handler`)
@@ -65,7 +65,8 @@ npm run test:watch # Vitest, watch mode
 ```
 
 Lint, test, and build also run in CI on every pull request to `main`
-(`.github/workflows/ci.yml`). `npm run lint` currently exits clean with **3
+(`.github/workflows/ci.yml`), on **Node 24** — Vitest 5 requires Node
+`^22.12 || ^24 || >=26`, and 24 matches the Vercel project. `npm run lint` currently exits clean with **3
 deliberate warnings** from the React Compiler rules in `src/App.jsx`; they are
 deferred to Phase 1 because fixing them changes runtime behavior. Do not
 silence them.
@@ -85,13 +86,14 @@ Active:
 | `public/config.js` | Git-ignored. Sets `window.__EL_KEY__` (ElevenLabs). Must exist locally or voice is silent |
 | `index.html` | Loads `/config.js` then `/src/main.jsx`. Google Fonts: DM Sans, DM Mono, Space Grotesk |
 | `vercel.json` | SPA rewrite, everything but `/api/*` to `index.html` |
+| `vite.config.mjs` | Vite config. `.mjs` so Vite 8 loads it as ESM |
 
 Also active:
 
 | Path | What it is |
 |---|---|
 | `eslint.config.js` | ESLint 9 flat config. Separate blocks for `src/` (browser), `api/` (Node), configs and tests |
-| `vitest.config.js` | Vitest, jsdom environment |
+| `vitest.config.mjs` | Vitest, jsdom environment. `.mjs` so Vite 8 loads it as ESM |
 | `test/gamePacks.test.js` | Smoke test guarding the objection library's shape |
 | `.github/workflows/ci.yml` | Lint, test, build on pull requests to `main` |
 
@@ -162,11 +164,15 @@ the Vercel git link once and pushes silently stopped deploying for two months.
 If a push does not produce a deployment, check Vercel Settings -> Git before
 assuming the build failed.
 
-Dependency advisories: Phase 0 ran `npm audit fix`, clearing the `browserslist`,
-`nanoid`, and `postcss` advisories. **5 remain** (3 moderate, 1 high, 1 critical),
-all dev-toolchain, none shipped to users — they all trace to `vite@5` ->
-`esbuild<=0.24.2` and need `vite@8` + `vitest@4` to clear, a three-major bump
-deliberately deferred. See `CHANGELOG.md` 2026-09-02.
+Dependency advisories: **none. `npm audit` reports 0 vulnerabilities** as of
+2026-09-09, after the vite 8 / vitest 5 upgrade cleared the last 5. See
+`CHANGELOG.md` 2026-09-09.
+
+**Dependabot bumps to `vite`, `vitest`, or `@vitejs/plugin-react` must move
+together in one commit.** Vitest peers on a narrow vite range, so a solo bump
+fails at `npm install` with `ERESOLVE` and the preview deployment errors. A
+green Vercel check does not clear a bot PR either — Vercel runs `npm install`,
+CI runs `npm ci` against the lockfile, and only CI catches a stale lockfile.
 
 ## Guardrails
 

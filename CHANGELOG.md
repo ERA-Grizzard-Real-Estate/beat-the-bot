@@ -1,5 +1,35 @@
 # Beat The Bot — Changelog & Ops Notes
 
+## 2026-09-09 (build toolchain — vite 8, vitest 5)
+
+Dependency upgrade only. **No application behavior changed**; the game plays
+exactly as it did before.
+
+- `vite` 5.4 -> 8.2, `@vitejs/plugin-react` 4.3 -> 6.1, `vitest` 2.1 -> 5.0.
+- **All npm advisories are now cleared: `npm audit` reports 0 vulnerabilities.**
+  The 5 that Phase 0 deferred all traced to `vite@5` -> `esbuild<=0.24.2`.
+- Renamed `vite.config.js` -> `vite.config.mjs` and `vitest.config.js` ->
+  `vitest.config.mjs`. Vite 8 warns when it loads ESM config as CommonJS. The
+  alternative fix, `"type": "module"` in `package.json`, would also change how
+  Node interprets `api/score.js` in production, so the configs were renamed
+  instead to keep the change away from the serverless path.
+- CI Node bumped 20 -> 24. **Vitest 5 requires Node `^22.12 || ^24 || >=26`**,
+  so the old pin could not have run the tests. 24 matches the Vercel project.
+
+### Why this landed now
+
+Dependabot opened PR #5 bumping vitest 2.1.9 -> 5.0.0 on its own. Vitest 5
+peers on `vite ^6.4 || ^7 || ^8`, the repo was on vite 5, and the preview
+deployment failed with `ERESOLVE` at `npm install`. Bumping vitest alone can
+never succeed; vite and the React plugin have to move in the same commit.
+That supersedes Dependabot PRs #1, #3, and #5.
+
+Verified: `npm run lint && npm test && npm run build` passes, bundle size
+unchanged (240.16 kB vs 240.46 kB), and the app was driven in a browser from
+splash through registration to category select with no console errors. The
+scoring and voice loop past that point still needs live keys and was not
+exercised.
+
 ## 2026-09-02 (Phase 0 — repo hygiene)
 
 Housekeeping only. **No application behavior changed**; the game plays exactly
