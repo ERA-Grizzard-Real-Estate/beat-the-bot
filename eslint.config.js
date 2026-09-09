@@ -69,7 +69,7 @@ export default [
 
   // Config and test files
   {
-    files: ['*.config.js', 'test/**/*.{js,jsx}', 'src/**/*.test.{js,jsx}'],
+    files: ['*.config.{js,mjs}', 'test/**/*.{js,jsx}', 'src/**/*.test.{js,jsx}'],
     ...js.configs.recommended,
     languageOptions: {
       ecmaVersion: 2022,
