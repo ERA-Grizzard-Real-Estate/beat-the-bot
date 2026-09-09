@@ -1,17 +1,13 @@
-// Rex — game show host (intros, category announcements, roasts, round winners, champion reveal)
-export const REX_VOICE_ID = "dHd5gvgSOzSfduK4CvEg";
-
-// Coach — delivers scoring feedback and coaching tips after each response
-export const COACH_VOICE_ID = "nf3HWeYdCxC9WYfyDEDE";
-
-// Challenger voices — one per pack (delivers the objection in character)
-export const CHALLENGER_VOICE_IDS = {
-  1: "2tM0Teq5Piex0mNtlZnm",  // Pack 1 — Classic Beat The Bot
-  2: "SOYHLrjzK2X1ezoPC6cr",  // Pack 2 — Expired Listings
-  3: "K7W7zLWeGoxU9YqWoB7A",  // Pack 3 — Seller Pricing
-  4: "pNInz6obpgDQGcFmaJgB",  // Pack 4 — For Sale By Owner
-  5: "FGY2WhTYpPnrIDTdsKH5",  // Pack 5 — Buyer Objections
-};
+// Voice playback and transcription, both proxied through /api/voice/*.
+//
+// There is no API key in this file and none in the browser. The ElevenLabs key
+// lives server-side in the ELEVENLABS_API_KEY environment variable, read only
+// by api/voice/speak.js and api/voice/transcribe.js.
+//
+// Voice IDS also live server-side. The client sends a ROLE — "rex", "coach", or
+// "character" (plus a packId for "character") — and the server resolves it. If
+// you need to change a voice, change it in api/voice/speak.js; there is no copy
+// here to keep in sync.
 
 // Module-level reference to the currently playing audio — allows external skip
 let _currentAudio = null;
@@ -32,39 +28,37 @@ export function stopSpeaking() {
   }
 }
 
-export async function speakText(text, voiceId, speed = 1.15) {
-  const apiKey = import.meta.env.VITE_EL_KEY || window.__EL_KEY__ || "";
-  if (!apiKey) { console.warn("No ElevenLabs key found in VITE_EL_KEY or window.__EL_KEY__"); return; }
-  try {
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_turbo_v2",
-          voice_settings: {
-            stability: 0.4,
-            similarity_boost: 0.8,
-            style: 0.6,
-            use_speaker_boost: true,
-            speed: speed,
-          },
-        }),
-      }
-    );
+// Roles the server will accept. Anything else is normalized to "rex", which
+// matches how the old client-side mapping fell through to Rex.
+const VOICE_ROLES = ["rex", "coach", "character"];
 
-    if (!response.ok) throw new Error("ElevenLabs TTS failed");
+export async function speakText(text, voice = "rex", packId = null, speed = 1.15) {
+  const role = VOICE_ROLES.includes(voice) ? voice : "rex";
+  try {
+    const response = await fetch("/api/voice/speak", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text, voice: role, packId, speed }),
+    });
+
+    if (!response.ok) {
+      let detail = "";
+      try {
+        detail = (await response.json())?.error || "";
+      } catch {
+        detail = "";
+      }
+      throw new Error(`Voice proxy ${response.status}${detail ? `: ${detail}` : ""}`);
+    }
 
     const audioBlob = await response.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     _currentAudio = audio;
 
+    // The promise must resolve on onended, on onerror, AND via stopSpeaking().
+    // That third case is what makes the host's skip button work instead of
+    // hanging the phase machine. Do not change this contract.
     return new Promise((resolve) => {
       _currentResolve = resolve;
       audio.onended = () => {
@@ -86,40 +80,34 @@ export async function speakText(text, voiceId, speed = 1.15) {
 }
 
 export async function transcribeAudio(audioBlob) {
-  const apiKey = import.meta.env.VITE_EL_KEY || window.__EL_KEY__ || "";
+  // Try the server proxy first. Audio is sent as a raw body, transcribed, and
+  // discarded server-side — it is never stored.
+  try {
+    const response = await fetch("/api/voice/transcribe", {
+      method: "POST",
+      headers: { "content-type": audioBlob.type || "audio/webm" },
+      body: audioBlob,
+    });
 
-  // Try ElevenLabs first
-  if (apiKey) {
-    try {
-      const formData = new FormData();
-      // ElevenLabs expects 'file' not 'audio', and needs a proper filename with extension
-      formData.append("file", audioBlob, "recording.webm");
-      formData.append("model_id", "scribe_v1");
-
-      const response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
-        method: "POST",
-        headers: { "xi-api-key": apiKey },
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const text = data.text || data.transcript || "";
-        if (text.trim().length > 0) {
-          console.log("ElevenLabs STT success:", text);
-          return text;
-        }
-      } else {
-        const errText = await response.text();
-        console.warn("ElevenLabs STT failed:", response.status, errText);
+    if (response.ok) {
+      const data = await response.json();
+      const text = (data?.text || "").trim();
+      if (text.length > 0) return text;
+      console.warn("Transcription came back empty; falling back to browser STT.");
+    } else {
+      let detail = "";
+      try {
+        detail = (await response.json())?.error || "";
+      } catch {
+        detail = "";
       }
-    } catch (err) {
-      console.warn("ElevenLabs STT error:", err);
+      console.warn("Voice proxy STT failed:", response.status, detail);
     }
+  } catch (err) {
+    console.warn("Voice proxy STT error:", err);
   }
 
-  // Fallback — browser Web Speech API via re-play trick won't work on blob,
-  // so use a fresh browser recognition session instead
+  // Fallback — browser Web Speech API.
   console.log("Falling back to browser speech recognition...");
   return await transcribeWithBrowser(audioBlob);
 }
@@ -130,7 +118,7 @@ function transcribeWithBrowser(audioBlob) {
   return new Promise((resolve) => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      resolve("[Could not transcribe — no speech recognition available. Check ElevenLabs key in config.js]");
+      resolve("[Could not transcribe — no speech recognition available in this browser.]");
       return;
     }
 

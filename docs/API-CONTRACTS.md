@@ -108,19 +108,54 @@ error. Do not fabricate a `score: 0` result and do not persist one.
 
 ---
 
-## Voice proxy (new — Phase 10)
+## Voice proxy — BUILT 2026-09-09
+
+`ELEVENLABS_API_KEY` is a server-only environment variable. No key and no voice
+id reaches the browser. This replaced `public/config.js`.
 
 ### `POST /api/voice/speak`
-Body `{ text, voiceId, speed }`. Streams `audio/mpeg` back. Server holds
-`ELEVENLABS_API_KEY`. Stream through rather than buffering the whole clip.
-Settings: model `eleven_turbo_v2`, stability 0.4, similarity_boost 0.8,
+Body `{ text, voice, packId, speed }`. Returns `audio/mpeg`.
+
+**Takes a role, not a voice id** — a deviation from the original draft of this
+contract, made on purpose. `voice` is `"rex" | "coach" | "character"`, and
+`packId` selects the challenger when `voice` is `"character"`. The id table
+lives in `api/voice/speak.js` and nowhere else. Accepting a caller-supplied
+`voiceId` would have made this an open proxy to any voice on the ElevenLabs
+account, billed to us, and would have kept the ids in the client bundle.
+
+Unknown role -> `400`. Empty text -> `400`. Text over 5000 chars -> `413`.
+Upstream failure -> `502` with no upstream detail forwarded to the browser.
+
+Settings, carried over verbatim from the old client call so Rex sounds
+unchanged: model `eleven_turbo_v2`, stability 0.4, similarity_boost 0.8,
 style 0.6, speaker boost on, default speed 1.15.
 
+**On streaming:** this buffers the clip rather than streaming it through, which
+the earlier draft advised against. Streaming the proxy would not help today —
+the client plays via `new Audio(URL.createObjectURL(blob))`, which needs the
+whole blob before playback starts, so the wait is identical either way. Revisit
+only alongside a client that uses MediaSource.
+
 ### `POST /api/voice/transcribe`
-`multipart/form-data` with the audio blob. Response `200 { text }`. Model
-`scribe_v1`. **Pass through the mime type and filename the browser actually
-produced** — Safari and Chrome differ, and a mismatch is a silent failure.
-The audio is forwarded and discarded. Never write it to disk or storage.
+**Raw audio as the request body**, not `multipart/form-data`, with the
+browser's own mime type in `Content-Type`. Another deliberate deviation: the
+browser already knows its recording format, and forwarding the raw bytes means
+there is no multipart parser on this side to get wrong. The handler re-wraps
+the bytes as multipart for ElevenLabs with filename `recording.webm` and
+`model_id: scribe_v1`.
+
+Response `200 { text }`. Empty body -> `400`. Over 4 MB -> `413`, deliberately
+under Vercel's 4.5 MB request cap so the failure is a clear message rather than
+a dropped connection. Upstream failure -> `502`.
+
+Accepted content types: `audio/webm`, `audio/ogg`, `audio/mp4`, `audio/mpeg`,
+`audio/wav`, `audio/x-wav`; anything else is treated as `audio/webm`.
+
+The audio is held in memory, forwarded, and dropped when the request ends.
+Never written to disk or storage. Only the transcript comes back.
+
+The client still falls back to the browser Web Speech API if this endpoint
+fails, so a voice outage degrades rather than blocking the game.
 
 ---
 

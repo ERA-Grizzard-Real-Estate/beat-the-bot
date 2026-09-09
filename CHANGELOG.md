@@ -38,6 +38,53 @@ from 4; the new ones pin the solo and competition line sets by membership
 rather than keyword, since not every champion line contains the word
 "champion".
 
+## 2026-09-09 (voice moved server-side — Phase 10, partial)
+
+**Rex can speak on the deployed site for the first time.** Requires
+`ELEVENLABS_API_KEY` to be set in Vercel.
+
+### The bug this fixes
+
+`index.html` loaded `/config.js`, which set `window.__EL_KEY__`. That file is
+git-ignored and had **never been committed**, so no Vercel build ever contained
+it. `vercel.json` rewrites every non-`/api/` path to `index.html`, so
+`/config.js` returned HTML with a `200`, the browser parsed HTML as JavaScript,
+and production threw `SyntaxError: Unexpected token '<'` on every load.
+`window.__EL_KEY__` was `undefined`, so the deployed app was silent. It worked
+on a laptop only because the file exists there on disk — which is why Refuel ran
+from one machine.
+
+### What changed
+
+- Added `api/voice/speak.js` and `api/voice/transcribe.js`. The ElevenLabs key
+  is now a server-only env var, `ELEVENLABS_API_KEY`.
+- **Voice IDs moved server-side too.** The client sends a role, not an id.
+  Accepting a caller-supplied id would have made the endpoint an open proxy to
+  any voice on the account. `api/voice/speak.js` is now the only copy of the
+  mapping, and `test/voiceProxy.test.js` pins it.
+- Removed the `<script src="/config.js">` tag from `index.html`. That alone
+  clears the production console error.
+- `src/hooks/useElevenLabs.js` no longer contains a key, a voice id, or an
+  elevenlabs.io URL. Verified against the built bundle.
+- `public/config.js` added to `.vercelignore`. It is obsolete, but a CLI deploy
+  from a machine that still has it would publish a real static `/config.js`
+  that beats the SPA rewrite and is publicly readable.
+- Audio stays transient: read into memory, forwarded, dropped. Never stored.
+- The browser Web Speech API fallback is unchanged, so a voice outage degrades
+  instead of blocking the game.
+
+### Verified
+
+18 tests pass, including that the key never appears in a response and that
+upstream ElevenLabs errors are not forwarded to the browser. The game was
+driven from splash through registration, category select, the roulette, and
+into the answer phase with the proxy returning 404 the whole way: every phase
+advanced, nothing hung, and the failures logged cleanly. That is the
+`speakText` skip contract holding.
+
+**Still to verify with a real key:** actual audio playback and a real
+transcription. Neither can be exercised without `ELEVENLABS_API_KEY` set.
+
 ## 2026-09-09 (build toolchain — vite 8, vitest 5)
 
 Dependency upgrade only. **No application behavior changed**; the game plays

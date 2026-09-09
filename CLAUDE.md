@@ -43,7 +43,7 @@ Leesburg, Clermont, The Villages, Downtown Orlando, Daytona.
 - Styling: one giant template-literal CSS string at the bottom of `src/App.jsx`
   (the `CSS` const, ~550 lines) injected into a `<style>` tag
 - Serverless: Vercel functions in `/api` (Node, ESM `export default handler`)
-- Voice: ElevenLabs TTS + STT (`scribe_v1`), browser Web Speech API fallback
+- Voice: ElevenLabs TTS + STT (`scribe_v1`) **behind `/api/voice/*`**, browser Web Speech API fallback
 - Scoring: Anthropic Messages API, model `claude-sonnet-4-6`
 - Host: Vercel project `beat-the-bot-2`, `https://beat-the-bot-2.vercel.app`
 - Repo: `github.com/ERA-Grizzard-Real-Estate/beat-the-bot`, deploys on push to `main`
@@ -83,8 +83,10 @@ Active:
 | `src/hooks/useScoring.js` | Rex script lines + `scoreResponse`, `scoreRound`, `getRexBanter` (thin fetch wrappers over `/api/score`) |
 | `src/data/gamePacks.js` | `GAME_PACKS` — 4 categories, 30 objections. Generated from the JSON library, not hand-authored |
 | `api/score.js` | Serverless scorer. Holds the live rubric. Three modes: single, batch, banter |
-| `public/config.js` | Git-ignored. Sets `window.__EL_KEY__` (ElevenLabs). Must exist locally or voice is silent |
-| `index.html` | Loads `/config.js` then `/src/main.jsx`. Google Fonts: DM Sans, DM Mono, Space Grotesk |
+| `api/voice/speak.js` | ElevenLabs TTS proxy. **Holds the only copy of the voice IDs** and resolves a role to one |
+| `api/voice/transcribe.js` | ElevenLabs STT proxy. Raw audio in, transcript out, audio discarded |
+| `index.html` | Loads `/src/main.jsx`. Google Fonts: DM Sans, DM Mono, Space Grotesk |
+| `.env.example` | Names the three env vars. Copy to `.env.local` for `vercel dev` |
 | `vercel.json` | SPA rewrite, everything but `/api/*` to `index.html` |
 | `vite.config.mjs` | Vite config. `.mjs` so Vite 8 loads it as ESM |
 
@@ -111,6 +113,10 @@ used, at `src/App.jsx:624`) but was left in place pending Gus's call.
 
 ## Conventions that matter
 
+- **Voice IDs live server-side, in `api/voice/speak.js`, and nowhere else.** The
+  client sends a role — `rex`, `coach`, or `character` plus a `packId` — and the
+  server resolves it. Do not add a client-side copy; that is the same trap the
+  duplicated rubric was.
 - **Rex's voice is the product.** Theatrical, savage but punching up, never
   cruel, PG. One-sentence roast, then real coaching. Never write flat corporate
   copy into a Rex line.
@@ -146,10 +152,13 @@ used, at `src/App.jsx:624`) but was left in place pending Gus's call.
 - `SCORING_MODEL` — optional Vercel env var. Defaults to `claude-sonnet-4-6` in
   code. This account does **not** have `claude-sonnet-4-20250514`; a 404 from
   the scorer means a wrong model name.
-- ElevenLabs key — currently **client-side** in `public/config.js` as
-  `window.__EL_KEY__`. This is a known production gap; see the handover spec.
-- `public/config.js` is git-ignored. A fresh clone has no voice until you create
-  it. Never commit a real key into it.
+- `ELEVENLABS_API_KEY` — Vercel env var only, read by `api/voice/speak.js` and
+  `api/voice/transcribe.js`. **Never in the client bundle.** Fixed 2026-09-09;
+  it used to ship to the browser via `public/config.js`.
+- `public/config.js` is **obsolete**. Nothing loads it — the script tag is gone
+  from `index.html`. It is git-ignored and also in `.vercelignore`, because a
+  real static `/config.js` would win over the SPA rewrite and be publicly
+  readable. Delete your local copy once the key is in Vercel. Never recreate it.
 
 Never print a key value into chat, a commit, or a log line.
 

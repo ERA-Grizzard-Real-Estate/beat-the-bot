@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { GAME_PACKS } from "./data/gamePacks";
-import { speakText, stopSpeaking, transcribeAudio, REX_VOICE_ID, COACH_VOICE_ID, CHALLENGER_VOICE_IDS } from "./hooks/useElevenLabs";
+import { speakText, stopSpeaking, transcribeAudio } from "./hooks/useElevenLabs";
 import { scoreResponse, scoreRound, getRexPackIntro, getRexPlayerIntro, getRexRoundWinner, getRexChampion, getRexHandoffQuip, getRexGradingIntro, getRexGradingFiller, getRexBanter } from "./hooks/useScoring";
 
 // ─── PLAYER COUNT ────────────────────────────────────────────────────────────
@@ -193,18 +193,11 @@ export default function App() {
   const speak = useCallback(async (text, voice = "rex", packId = null) => {
     setIsSpeaking(true);
     const resolvedPackId = packId ?? selectedPackId;
-    let voiceId, speed;
-    if (voice === "coach") {
-      voiceId = COACH_VOICE_ID;
-      speed = 1.0;   // Coach is calm and measured
-    } else if (voice === "character") {
-      voiceId = CHALLENGER_VOICE_IDS[resolvedPackId] || REX_VOICE_ID;
-      speed = 1.0;   // Character speaks naturally
-    } else {
-      voiceId = REX_VOICE_ID;
-      speed = 1.15;  // Rex is theatrical and energetic — slightly faster
-    }
-    await speakText(text, voiceId, speed);
+    // Coach is calm and measured, the character speaks naturally, Rex is
+    // theatrical and slightly faster. The voice ID itself is resolved from the
+    // role server-side in api/voice/speak.js.
+    const speed = voice === "coach" || voice === "character" ? 1.0 : 1.15;
+    await speakText(text, voice, resolvedPackId, speed);
     setIsSpeaking(false);
   }, [selectedPackId]);
 
