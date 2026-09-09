@@ -1,5 +1,43 @@
 # Beat The Bot — Changelog & Ops Notes
 
+## 2026-09-09 (choose 1-4 players at the start of a game)
+
+The roster size is no longer a hardcoded constant. A new setup screen between
+the splash and name entry lets the host pick **1 to 4 players**, defaulting to
+3 so nothing changes for anyone who just taps through.
+
+- New phase `PLAYER_SETUP`. `PLAYER_COUNT` is now `DEFAULT_PLAYER_COUNT`, with
+  `MIN_PLAYERS` and `MAX_PLAYERS` bounds.
+- The register screen gained a "Change player count" link. Miscounting the room
+  is easy at a live event, and names already typed survive the trip back.
+
+### Solo (1 player) is a real mode, not a degenerate case
+
+One agent means no rival, so three things had to change or Rex would have
+announced a winner and a champion of a field of one:
+
+- **Scoring.** Comparative round scoring exists to spread a field and force a
+  clear winner, and its competition addendum anchors the top answer at 9. Run
+  on a single answer it would inflate the score regardless of quality. Solo now
+  skips the batch call and scores the answer on its own merits, through the
+  `scoreResponse` path `gradeOne` already had as its fallback.
+- **Rex's lines.** Added `REX_SOLO_ROUND_LINES` and `REX_SOLO_FINISH_LINES`.
+  `getRexRoundWinner` and `getRexChampion` take a `solo` flag, defaulting to
+  false so competition play is untouched. The player intro no longer promises
+  "one champion" to a lone agent.
+- **The category screen** no longer prints "X WON — PICK YOUR BATTLEFIELD"
+  between solo rounds.
+
+The player handoff already did the right thing: with one player the
+"more agents to record?" check is false, so it goes straight to grading.
+
+Verified in a browser at both extremes. Solo: one name field, solo copy, one
+scoreboard card, and the game runs through the roulette to the objection.
+Four players: four name fields, P1-P4, competition copy. 10 tests pass, up
+from 4; the new ones pin the solo and competition line sets by membership
+rather than keyword, since not every champion line contains the word
+"champion".
+
 ## 2026-09-09 (voice moved server-side — Phase 10, partial)
 
 **Rex can speak on the deployed site for the first time.** Requires

@@ -4,9 +4,12 @@ import { speakText, stopSpeaking, transcribeAudio } from "./hooks/useElevenLabs"
 import { scoreResponse, scoreRound, getRexPackIntro, getRexPlayerIntro, getRexRoundWinner, getRexChampion, getRexHandoffQuip, getRexGradingIntro, getRexGradingFiller, getRexBanter } from "./hooks/useScoring";
 
 // ─── PLAYER COUNT ────────────────────────────────────────────────────────────
-// Number of competing agents. Set to 2 while building/testing; 3 is the
-// current main-stage roster.
-const PLAYER_COUNT = 3;
+// Chosen on the setup screen at the start of every game, 1 to 4. The constant
+// below is only the pre-selected default. 1 player is a valid solo rep: there
+// is no head-to-head, so scoring and Rex's lines switch to solo mode.
+const MIN_PLAYERS = 1;
+const MAX_PLAYERS = 4;
+const DEFAULT_PLAYER_COUNT = 3;
 
 const makePlayers = (n) => Array.from({ length: n }, (_, i) => ({ id: i, name: "" }));
 const makeScores = (n) => Array.from({ length: n }, () => 0);
@@ -15,6 +18,7 @@ const makeScores = (n) => Array.from({ length: n }, () => 0);
 const PHASE = {
   SPLASH: "splash",
   SOUND_CHECK: "sound_check",
+  PLAYER_SETUP: "player_setup",
   REGISTER: "register",
   CATEGORY_SELECT: "category_select",
   ROULETTE: "roulette",
@@ -133,8 +137,11 @@ function RouletteReel({ pack, targetIndex, color }) {
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [phase, setPhase] = useState(PHASE.SPLASH);
-  const [players, setPlayers] = useState(() => makePlayers(PLAYER_COUNT));
-  const [scores, setScores] = useState(() => makeScores(PLAYER_COUNT));
+  const [playerCount, setPlayerCount] = useState(DEFAULT_PLAYER_COUNT);
+  // One agent means no head-to-head: no rival to out-score, no champion.
+  const isSolo = playerCount === 1;
+  const [players, setPlayers] = useState(() => makePlayers(DEFAULT_PLAYER_COUNT));
+  const [scores, setScores] = useState(() => makeScores(DEFAULT_PLAYER_COUNT));
   const [_roundHistory, setRoundHistory] = useState([]); // [{packId, roundId, results:[{playerId,score,roast,coaching}]}]
   const [currentRound, setCurrentRound] = useState(0); // 0-3
   const [selectedPackId, setSelectedPackId] = useState(null);
@@ -193,6 +200,23 @@ export default function App() {
     await speakText(text, voice, resolvedPackId, speed);
     setIsSpeaking(false);
   }, [selectedPackId]);
+
+  // ── Player count ──
+  // Picking a count resizes the roster in place, so names already typed for the
+  // first N players survive a change of mind.
+  const handleChoosePlayerCount = (count) => {
+    const next = Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, count));
+    setPlayerCount(next);
+    setPlayers((prev) =>
+      Array.from({ length: next }, (_, i) => prev[i] || { id: i, name: "" })
+    );
+    setScores(makeScores(next));
+  };
+
+  const handleConfirmPlayerCount = () => {
+    handleChoosePlayerCount(playerCount);
+    setPhase(PHASE.REGISTER);
+  };
 
   // ── Sound check handlers ──
   const handleTestSpeaker = async () => {
@@ -424,17 +448,26 @@ export default function App() {
     // gradeOne falls back to per-answer scoring if the batch call fails.
     const pack = GAME_PACKS.find((p) => p.id === selectedPackId);
     const round = pack.rounds[selectedRoundIndex];
-    const batchPromise = scoreRound({
-      responses: responses.map((r) => ({ playerName: r.playerName, playerResponse: r.transcript })),
-      objection: round.objection,
-      persona: round.persona,
-      objective: round.objective,
-      benchmark: round.benchmark,
-      packName: pack.name,
-    }).catch((e) => {
-      console.error("Comparative scoring failed; falling back to per-answer:", e);
-      return null;
-    });
+    // Comparative scoring exists to spread a field and force a clear winner. With
+    // one answer there is nothing to compare, and the competition addendum would
+    // just anchor it at the top regardless of quality. Score solo answers on
+    // their own merits instead — gradeOne already falls back to scoreResponse.
+    const batchPromise = isSolo
+      ? Promise.resolve(null)
+      : scoreRound({
+          responses: responses.map((r) => ({
+            playerName: r.playerName,
+            playerResponse: r.transcript,
+          })),
+          objection: round.objection,
+          persona: round.persona,
+          objective: round.objective,
+          benchmark: round.benchmark,
+          packName: pack.name,
+        }).catch((e) => {
+          console.error("Comparative scoring failed; falling back to per-answer:", e);
+          return null;
+        });
 
     // Improv filler for the scoring break: generate a fresh Rex line in the
     // background (overlaps the wait), fall back to a canned shout-out if it fails.
@@ -531,10 +564,10 @@ export default function App() {
       const maxScore = Math.max(...scores);
       const winnerIdx = scores.indexOf(maxScore);
       setWinnerIndex(winnerIdx);
-      await speak(getRexChampion(players[winnerIdx].name, scores[winnerIdx]), "rex");
+      await speak(getRexChampion(players[winnerIdx].name, scores[winnerIdx], isSolo), "rex");
       setPhase(PHASE.GAME_OVER);
     } else {
-      await speak(getRexRoundWinner(roundWinner.playerName, roundWinner.score), "rex");
+      await speak(getRexRoundWinner(roundWinner.playerName, roundWinner.score, isSolo), "rex");
       // Round winner earns the pick: they choose the next battlefield AND lead
       // off the next round. Put the winner first; everyone else keeps their
       // relative order behind them. (Ties go to whoever answered first.)
@@ -565,8 +598,9 @@ export default function App() {
 
   const handlePlayAgain = () => {
     setPhase(PHASE.SPLASH);
-    setPlayers(makePlayers(PLAYER_COUNT));
-    setScores(makeScores(PLAYER_COUNT));
+    setPlayerCount(DEFAULT_PLAYER_COUNT);
+    setPlayers(makePlayers(DEFAULT_PLAYER_COUNT));
+    setScores(makeScores(DEFAULT_PLAYER_COUNT));
     setRoundHistory([]);
     setCurrentRound(0);
     setSelectedPackId(null);
@@ -616,7 +650,7 @@ export default function App() {
               <div className="rex-tagline">"The most theatrical host in real estate training history"</div>
             </div>
             <div className="splash-buttons">
-              <button className="btn-primary" onClick={() => setPhase(PHASE.REGISTER)}>
+              <button className="btn-primary" onClick={() => setPhase(PHASE.PLAYER_SETUP)}>
                 ENTER THE ARENA
               </button>
               <button className="btn-sound-check" onClick={() => {
@@ -721,17 +755,48 @@ export default function App() {
             </div>
           </div>
 
-          <button className="btn-primary" onClick={() => setPhase(PHASE.REGISTER)}>
+          <button className="btn-primary" onClick={() => setPhase(PHASE.PLAYER_SETUP)}>
             ENTER THE ARENA →
           </button>
         </div>
       )}
 
 
+      {phase === PHASE.PLAYER_SETUP && (
+        <div className="screen register-screen">
+          <h1 className="screen-title">HOW MANY PLAYING?</h1>
+          <p className="screen-sub">
+            Pick 1 to {MAX_PLAYERS}. One agent is a solo rep — no rivals, just you and the bot.
+          </p>
+          <div className="count-grid">
+            {Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, i) => i + MIN_PLAYERS).map(
+              (count) => (
+                <button
+                  key={count}
+                  className={`count-tile ${playerCount === count ? "selected" : ""}`}
+                  onClick={() => handleChoosePlayerCount(count)}
+                  aria-pressed={playerCount === count}
+                >
+                  <span className="count-number">{count}</span>
+                  <span className="count-label">{count === 1 ? "solo" : "agents"}</span>
+                </button>
+              )
+            )}
+          </div>
+          <button className="btn-primary" onClick={handleConfirmPlayerCount}>
+            CONTINUE
+          </button>
+        </div>
+      )}
+
       {phase === PHASE.REGISTER && (
         <div className="screen register-screen">
-          <h1 className="screen-title">WHO'S COMPETING TODAY?</h1>
-          <p className="screen-sub">{players.length} agents. One winner. Zero mercy.</p>
+          <h1 className="screen-title">{isSolo ? "WHO'S STEPPING UP?" : "WHO'S COMPETING TODAY?"}</h1>
+          <p className="screen-sub">
+            {isSolo
+              ? "One agent. Three objections. Zero mercy."
+              : `${players.length} agents. One winner. Zero mercy.`}
+          </p>
           <div className="player-inputs">
             {players.map((player, i) => (
               <div key={i} className="player-input-row">
@@ -756,6 +821,11 @@ export default function App() {
           <button className="btn-primary" onClick={handleStartGame}>
             LET'S GO 🎯
           </button>
+          {/* Miscounting the room is easy at a live event. Names already typed
+              survive the trip back. */}
+          <button className="btn-link" onClick={() => setPhase(PHASE.PLAYER_SETUP)}>
+            ← Change player count
+          </button>
         </div>
       )}
 
@@ -768,7 +838,9 @@ export default function App() {
             ))}
           </div>
           <h2 className="screen-title">
-            {currentRound === 0 ? "PICK YOUR BATTLEFIELD" : `🏆 ${players[currentPlayerOrder[0]?.id]?.name || ""} WON — PICK YOUR BATTLEFIELD`}
+            {currentRound === 0 || isSolo
+              ? "PICK YOUR BATTLEFIELD"
+              : `🏆 ${players[currentPlayerOrder[0]?.id]?.name || ""} WON — PICK YOUR BATTLEFIELD`}
           </h2>
           <p className="screen-sub">Round {currentRound + 1} of 3</p>
           <div className="pack-grid">
@@ -1262,6 +1334,37 @@ const CSS = `
   .pack-emoji { font-size: 32px; }
   .pack-tile-name { font-family: 'Red Hat Display', sans-serif; font-weight: 900; font-size: 16px; letter-spacing: 2px; color: var(--text); }
   .pack-used-badge { font-size: 10px; letter-spacing: 2px; color: var(--sub); }
+
+  .btn-link {
+    background: none; border: none; color: var(--sub); cursor: pointer;
+    margin-top: 14px; font-size: 12px; letter-spacing: 1px;
+    text-transform: uppercase; transition: color 0.2s;
+  }
+  .btn-link:hover { color: var(--text); }
+
+  /* ── PLAYER COUNT PICKER ── */
+  .count-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 14px; width: 100%; max-width: 460px; margin-bottom: 28px;
+  }
+  .count-tile {
+    background: var(--dark3); border: 2px solid var(--border);
+    border-radius: 16px; padding: 18px 12px; cursor: pointer; text-align: center;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .count-tile:hover:not(.selected) {
+    transform: translateY(-4px); border-color: var(--sub);
+  }
+  .count-tile.selected {
+    border-color: var(--red);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 20px rgba(200,16,46,0.35);
+  }
+  .count-number {
+    font-family: 'Red Hat Display', sans-serif; font-weight: 900;
+    font-size: 34px; line-height: 1; color: var(--text);
+  }
+  .count-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--sub); }
 
   /* ── SCOREBOARD MINI ── */
   .scoreboard-mini {

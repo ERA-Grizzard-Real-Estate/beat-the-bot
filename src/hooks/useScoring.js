@@ -32,6 +32,21 @@ export const REX_CHAMPION_LINES = [
   (name, score) => `We came. We competed. We handled objections that would make lesser agents run for the parking lot. And when the smoke cleared — ${name} stood tall with ${score} points! The crown is yours. The bragging rights are yours. The next happy hour is definitely on you — but the GLORY is YOURS!`,
 ];
 
+// ── Solo lines ───────────────────────────────────────────────────────────────
+// With one agent there is no winner and no champion. Rex still lands a beat,
+// he just aims it at the rep instead of a rival.
+export const REX_SOLO_ROUND_LINES = [
+  (name, score) => `${score} on that one, ${name}. Bank it — pick your next battlefield.`,
+  (name, score) => `${name}, that's a ${score}. Shake it off, choose the next category.`,
+  (name, score) => `${score} points. The objection never stood a chance... mostly. Your pick, ${name}.`,
+];
+
+export const REX_SOLO_FINISH_LINES = [
+  (name, score) => `That's the set! Three objections, ${score} points, and ${name} is still standing. That is called REPS, folks. Come back tomorrow and beat that number!`,
+  (name, score) => `${name} — ${score} points across three rounds. Nobody to beat but yourself, and honestly? That's the toughest opponent in this business. Same time tomorrow!`,
+  (name, score) => `And we're done! ${score} points for ${name}. You showed up, you talked to the bot, and you got sharper. That's the whole game. GO SELL SOMETHING!`,
+];
+
 // ── Tiebreaker lines ─────────────────────────────────────────────────────────
 export const REX_TIEBREAKER_LINES = [
   `LADIES AND GENTLEMEN — I have been doing this for a LONG time and what we have right now... is a TIE! A genuine, honest-to-goodness, nobody-blinked TIE! This next round will decide EVERYTHING. Every point. Every word. Every pause. It all matters NOW. Contestants — do NOT hold back!`,
@@ -45,12 +60,20 @@ export function getRexPackIntro(packId) {
   return lines[Math.floor(Math.random() * lines.length)];
 }
 
-export function getRexRoundWinner(playerName, score) {
+export function getRexRoundWinner(playerName, score, solo = false) {
+  if (solo) {
+    const soloLine = REX_SOLO_ROUND_LINES[Math.floor(Math.random() * REX_SOLO_ROUND_LINES.length)];
+    return soloLine(playerName, score);
+  }
   const line = REX_ROUND_WINNER_LINES[Math.floor(Math.random() * REX_ROUND_WINNER_LINES.length)];
   return line(playerName, score);
 }
 
-export function getRexChampion(playerName, score) {
+export function getRexChampion(playerName, score, solo = false) {
+  if (solo) {
+    const soloLine = REX_SOLO_FINISH_LINES[Math.floor(Math.random() * REX_SOLO_FINISH_LINES.length)];
+    return soloLine(playerName, score);
+  }
   const line = REX_CHAMPION_LINES[Math.floor(Math.random() * REX_CHAMPION_LINES.length)];
   return line(playerName, score);
 }
@@ -69,8 +92,10 @@ export function getRexPlayerIntro(players) {
   } else {
     nameList = `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
   }
-  const agentWord = names.length === 1 ? "agent" : "agents";
-  return `Welcome to BEAT THE BOT — give it up for tonight's competitors: ${nameList}! ${names.length} ${agentWord}, one champion. Everyone answers blind, then we grade. Let's GO!`;
+  if (names.length === 1) {
+    return `Welcome to BEAT THE BOT — in the arena tonight, all by themselves: ${nameList}! Three objections, no teammates, nowhere to hide. Answer it, then we grade it. Let's GO!`;
+  }
+  return `Welcome to BEAT THE BOT — give it up for tonight's competitors: ${nameList}! ${names.length} agents, one champion. Everyone answers blind, then we grade. Let's GO!`;
 }
 
 // ── Quick, non-evaluative handoff quips (collection phase) ───────────────────
