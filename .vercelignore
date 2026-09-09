@@ -1,6 +1,14 @@
 node_modules
 dist
 .env
+.env.local
 .DS_Store
 .vercel
 .git
+
+# Obsolete: the ElevenLabs key used to be served to the browser from here.
+# It is now server-side in ELEVENLABS_API_KEY, and index.html no longer loads
+# this file. Listed so a `vercel` CLI deploy from a machine that still has the
+# file can never upload it — a real static /config.js would take precedence
+# over the SPA rewrite and be publicly readable.
+public/config.js
