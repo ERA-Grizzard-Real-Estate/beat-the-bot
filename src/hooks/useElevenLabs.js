@@ -156,33 +156,3 @@ function transcribeWithBrowser(audioBlob) {
     audio.play();
   });
 }
-
-export function useAudioRecorder() {
-  let mediaRecorder = null;
-  let audioChunks = [];
-
-  const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunks.push(e.data);
-    };
-    mediaRecorder.start();
-    return mediaRecorder;
-  };
-
-  const stopRecording = () => {
-    return new Promise((resolve) => {
-      if (!mediaRecorder) return resolve(null);
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunks, { type: "audio/webm" });
-        resolve(blob);
-      };
-      mediaRecorder.stop();
-      mediaRecorder.stream.getTracks().forEach((t) => t.stop());
-    });
-  };
-
-  return { startRecording, stopRecording };
-}
