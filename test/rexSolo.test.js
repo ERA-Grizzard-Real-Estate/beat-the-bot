@@ -7,7 +7,7 @@ import {
   REX_ROUND_WINNER_LINES,
   REX_SOLO_FINISH_LINES,
   REX_SOLO_ROUND_LINES,
-} from '../src/hooks/useScoring'
+} from '../src/game/rexScript'
 
 // Keyword matching is unreliable here — not every champion line contains the
 // word "champion". Compare against the actual line sets instead.

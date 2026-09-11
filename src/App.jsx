@@ -1,8 +1,22 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { GAME_PACKS } from "./data/gamePacks";
 import { speakText, stopSpeaking, transcribeAudio } from "./hooks/useElevenLabs";
-import { scoreResponse, scoreRound, getRexPackIntro, getRexPlayerIntro, getRexRoundWinner, getRexChampion, getRexHandoffQuip, getRexGradingIntro, getRexGradingFiller, getRexBanter } from "./hooks/useScoring";
+import { scoreResponse, scoreRound, getRexBanter } from "./game/scoring";
+import {
+  getRexPackIntro,
+  getRexPlayerIntro,
+  getRexRoundWinner,
+  getRexChampion,
+  getRexHandoffQuip,
+  getRexGradingIntro,
+  getRexGradingFiller,
+} from "./game/rexScript";
 
+import { PHASE, getRotatedOrder } from "./game/phases";
+import Particle from "./components/Particle";
+import ScoreBar from "./components/ScoreBar";
+import PlayerCard from "./components/PlayerCard";
+import RouletteReel from "./components/RouletteReel";
 // ─── PLAYER COUNT ────────────────────────────────────────────────────────────
 // Chosen on the setup screen at the start of every game, 1 to 4. The constant
 // below is only the pre-selected default. 1 player is a valid solo rep: there
@@ -13,126 +27,6 @@ const DEFAULT_PLAYER_COUNT = 3;
 
 const makePlayers = (n) => Array.from({ length: n }, (_, i) => ({ id: i, name: "" }));
 const makeScores = (n) => Array.from({ length: n }, () => 0);
-
-// ─── PHASE CONSTANTS ───────────────────────────────────────────────────────────
-const PHASE = {
-  SPLASH: "splash",
-  SOUND_CHECK: "sound_check",
-  PLAYER_SETUP: "player_setup",
-  REGISTER: "register",
-  CATEGORY_SELECT: "category_select",
-  ROULETTE: "roulette",
-  REX_INTRO: "rex_intro",
-  OBJECTION: "objection",
-  PLAYER_HANDOFF: "player_handoff",
-  PLAYER_RESPONSE: "player_response",
-  GRADING_INTRO: "grading_intro",
-  SCORING: "scoring",
-  SCORE_REVEAL: "score_reveal",
-  ROUND_SUMMARY: "round_summary",
-  GAME_OVER: "game_over",
-};
-
-// ─── UTILITY ───────────────────────────────────────────────────────────────────
-function getRotatedOrder(players, roundIndex) {
-  const n = players.length;
-  return players.map((_, i) => players[(i + roundIndex) % n]);
-}
-
-// ─── COMPONENTS ────────────────────────────────────────────────────────────────
-
-function Particle({ style }) {
-  return <div className="particle" style={style} />;
-}
-
-function ScoreBar({ score, animated = false }) {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    if (animated) {
-      setTimeout(() => setWidth((score / 10) * 100), 300);
-    } else {
-      setWidth((score / 10) * 100);
-    }
-  }, [score, animated]);
-
-  const color = score >= 8 ? "#FFD700" : score >= 6 ? "#4ECDC4" : score >= 4 ? "#F97316" : "#FF6B6B";
-
-  return (
-    <div className="score-bar-wrap">
-      <div className="score-bar-track">
-        <div
-          className="score-bar-fill"
-          style={{ width: `${width}%`, background: color, transition: animated ? "width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none" }}
-        />
-      </div>
-      <span className="score-bar-label" style={{ color }}>{score}/10</span>
-    </div>
-  );
-}
-
-function PlayerCard({ player, score, isActive, isWinner, rank }) {
-  const rankColors = ["#c9a84c", "#f5f0e8", "#C8102E", "#2d6a4f", "#7b2d8b"];
-  return (
-    <div className={`player-card ${isActive ? "active" : ""} ${isWinner ? "winner" : ""}`}>
-      {isWinner && <div className="winner-crown">👑</div>}
-      {rank !== undefined && (
-        <div className="player-rank" style={{ color: rankColors[rank] || "#fff" }}>
-          #{rank + 1}
-        </div>
-      )}
-      <div className="player-avatar">{player.name.charAt(0).toUpperCase()}</div>
-      <div className="player-name">{player.name}</div>
-      <div className="player-total">{score} pts</div>
-    </div>
-  );
-}
-
-// ─── OBJECTION ROULETTE REEL ────────────────────────────────────────────────
-// Slot-machine reel that spins the chosen pack's objections and decelerates onto
-// the already-selected round (targetIndex). Visual only — no logic depends on it.
-function RouletteReel({ pack, targetIndex, color }) {
-  const ITEM_H = 60;
-  const LOOPS = 6;
-  const rounds = pack.rounds;
-  const n = rounds.length;
-  const stripRef = useRef(null);
-  const strip = [];
-  for (let l = 0; l < LOOPS; l++) for (let i = 0; i < n; i++) strip.push(rounds[i]);
-  const safeTarget = Math.max(0, Math.min(targetIndex ?? 0, n - 1));
-  const k = (LOOPS - 1) * n + safeTarget;
-  const finalY = -((k - 1) * ITEM_H);
-  useEffect(() => {
-    const el = stripRef.current;
-    if (!el) return;
-    el.style.transition = "none";
-    el.style.transform = "translateY(0px)";
-    el.style.filter = "blur(1.4px)";
-    void el.offsetHeight;
-    requestAnimationFrame(() => {
-      el.style.transition = "transform 3s cubic-bezier(0.12, 0.7, 0.16, 1)";
-      el.style.transform = `translateY(${finalY}px)`;
-    });
-    const t = setTimeout(() => {
-      if (stripRef.current) stripRef.current.style.filter = "none";
-    }, 2100);
-    return () => clearTimeout(t);
-  }, [finalY]);
-  return (
-    <div style={{ position: "relative", width: "100%", maxWidth: 460, margin: "1.5rem auto 0" }}>
-      <div style={{ position: "absolute", left: 0, right: 0, top: ITEM_H, height: ITEM_H, border: `2px solid ${color}`, borderRadius: 8, background: "rgba(255,255,255,0.05)", pointerEvents: "none", zIndex: 2 }} />
-      <div style={{ height: ITEM_H * 3, overflow: "hidden", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(11,50,121,0.22)" }}>
-        <div ref={stripRef} style={{ willChange: "transform" }}>
-          {strip.map((r, idx) => (
-            <div key={idx} style={{ height: ITEM_H, boxSizing: "border-box", padding: "0 18px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2 }}>
-              <div style={{ color: color, fontSize: 11, opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.persona}</div>
-              <div style={{ color: "#f5f0e8", fontWeight: 700, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.short || r.objection}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
