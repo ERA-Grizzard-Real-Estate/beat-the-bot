@@ -3,15 +3,14 @@
 //
 // Three modes: single (scoreResponse), batch/comparative (scoreRound), and
 // improv banter (getRexBanter).
+//
+// Every request goes through lib/api.js so there is one place to attach the
+// session and handle 401s once Phase 2 lands.
+
+import { postJson } from "../lib/api";
 
 export async function getRexBanter({ players = [], packName = "" } = {}) {
-  const response = await fetch("/api/score", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode: "banter", players, packName }),
-  });
-  if (!response.ok) throw new Error(`Banter API ${response.status}`);
-  const data = await response.json();
+  const data = await postJson("/api/score", { mode: "banter", players, packName });
   const line = (data && data.line ? String(data.line) : "").trim();
   if (!line) throw new Error("Empty banter line");
   return line;
@@ -30,19 +29,9 @@ export async function scoreResponse({
   // Scoring runs through our own serverless function (/api/score), which holds
   // the Anthropic key server-side. The key is NEVER shipped to the browser.
   try {
-    const response = await fetch("/api/score", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerName, objection, persona, objective, benchmark, playerResponse, packName }),
+    const result = await postJson("/api/score", {
+      playerName, objection, persona, objective, benchmark, playerResponse, packName,
     });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.error("Scoring API error:", response.status, detail);
-      throw new Error(`Scoring API ${response.status}`);
-    }
-
-    const result = await response.json();
     if (typeof result?.score !== "number") {
       console.error("Scoring API returned unexpected shape:", result);
       throw new Error("Bad scoring payload");
@@ -72,16 +61,9 @@ export async function scoreResponse({
 // array of result objects in the same order as `responses`. Throws on failure
 // so the caller can fall back to per-answer scoring.
 export async function scoreRound({ responses, objection, persona, objective, benchmark, packName }) {
-  const response = await fetch("/api/score", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ responses, objection, persona, objective, benchmark, packName }),
+  const data = await postJson("/api/score", {
+    responses, objection, persona, objective, benchmark, packName,
   });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Round scoring API ${response.status} ${detail}`);
-  }
-  const data = await response.json();
   const results = Array.isArray(data) ? data : data?.results;
   if (!Array.isArray(results) || results.length !== responses.length) {
     throw new Error("Round scoring returned wrong shape");
