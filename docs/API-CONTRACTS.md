@@ -288,6 +288,30 @@ and with `guestName` instead of a user for typed-name contestants.
 One agent's detail: the same shape as `/api/attempts/progress`, plus recent
 attempts with transcript and coaching.
 
+### `GET /api/reports/usage?office=&days=30`
+**Added 2026-09-14 at Gus's request.** Adoption, not performance — who is
+actually signing in and how hard the tool is being used.
+
+`200 {
+  period: { days, from, to },
+  totals: { registeredAgents, agentsWhoSignedIn, logins, attempts, gameSessions },
+  agents: [ { userId, displayName, office, logins, firstLoginAt, lastLoginAt,
+              attempts, daysActive } ],
+  neverSignedIn: [ { userId, displayName, office } ]
+}`
+
+`logins` counts rows in `login_events`, so repeat sessions in a day each count.
+`daysActive` counts distinct days with at least one attempt, which is the
+honest measure of a habit — someone who logs in five times on one day has used
+it once, not five times.
+
+**`neverSignedIn` is the point of this report.** Rollout succeeds or fails on
+who never showed up, and that list is invisible in any average.
+
+Same server-side scoping as the other reports: a `manager` is silently
+constrained to their own office; only an `admin` may pass an arbitrary office
+or omit it for all six.
+
 **Scoping is server-side.** A `manager` is silently constrained to their own
 office regardless of the `office` parameter; only an `admin` may pass an
 arbitrary office or omit it for all six. No export endpoints in this phase.

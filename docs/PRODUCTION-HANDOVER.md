@@ -302,21 +302,26 @@ Requirements:
    bypassed — verify the claim, do not trust the hint.
 2. **Session as an httpOnly, Secure, SameSite=Lax cookie.** No token in
    `localStorage`. 30-day rolling expiry.
-3. **On first successful login, create the user row** with `role = 'agent'`.
+3. **Write a `login_events` row on every successful sign-in.** Gus asked on
+   2026-09-14 for a report of who has logged in and how often, and
+   `users.last_seen_at` cannot answer it — it holds one timestamp and no
+   history. One row per sign-in, no IP and no user agent; see the note in
+   `docs/schema.sql`. Keep updating `last_seen_at` as well.
+4. **On first successful login, create the user row** with `role = 'agent'`.
    Roles are `agent`, `manager`, `admin`. Only an `admin` can change a role, and
    only through the admin panel.
-4. **Seed the first admin** by env var: `BOOTSTRAP_ADMIN_EMAILS`, a
+5. **Seed the first admin** by env var: `BOOTSTRAP_ADMIN_EMAILS`, a
    comma-separated list. Users matching it get `admin` on creation. Gus's
    address `ggrizzard@eragrizzard.com` goes in it.
-5. **`office` on the user record** is one of: Mount Dora, Leesburg, Clermont,
+6. **`office` on the user record** is one of: Mount Dora, Leesburg, Clermont,
    The Villages, Downtown Orlando, Daytona. Google will not supply it. Ask the
    agent once, on a first-login screen, and let an admin correct it. The manager
    dashboard groups by it, so it cannot be null for long.
-6. **Every `/api/*` route except the auth callbacks requires a valid session.**
+7. **Every `/api/*` route except the auth callbacks requires a valid session.**
    Add a `withAuth(handler, { role })` wrapper in `api/_lib/auth.js` and use it
    everywhere. `/api/score` included — today it is an open endpoint that spends
    Anthropic credits for anyone who finds it.
-7. **A middleware or per-route check gates `/admin` and `/dashboard` by role.**
+8. **A middleware or per-route check gates `/admin` and `/dashboard` by role.**
    The client also hides the nav links, but that is cosmetic.
 
 Login screen design: this is the first thing an agent ever sees. Full-bleed
@@ -554,6 +559,16 @@ Content, in priority order:
    attempts with transcript and coaching.
 5. **Office filter.** A manager sees their own office by default; an admin sees
    all six and can filter.
+6. **Adoption panel** — **added 2026-09-14 at Gus's request.** Backed by
+   `GET /api/reports/usage`. Who has signed in, how many times, first and last
+   login, and days active. Most importantly, **the list of agents who have
+   never signed in at all** — rollout succeeds or fails on that list, and it is
+   invisible in any average. Sign-in counts come from `login_events`, written
+   by the auth callback in Phase 2.
+
+   Keep sign-ins and reps as separate columns. Logging in five times in a day
+   is one use of the tool, not five; `daysActive` is the honest habit measure.
+   Do not blend them into a single "engagement" number.
 
 Requirements:
 
