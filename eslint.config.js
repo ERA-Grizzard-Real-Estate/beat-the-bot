@@ -33,6 +33,10 @@ export default [
     settings: { react: { version: '18.3' } },
     plugins: { react, 'react-hooks': reactHooks },
     rules: {
+      // Spread the recommended rules here, not via `...js.configs.recommended`
+      // above: a later `rules` key replaces that object's rules wholesale, which
+      // silently disabled no-undef and the rest of eslint:recommended.
+      ...js.configs.recommended.rules,
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
       'no-unused-vars': unusedVars,
@@ -64,7 +68,7 @@ export default [
       sourceType: 'module',
       globals: { ...globals.node },
     },
-    rules: { 'no-unused-vars': unusedVars },
+    rules: { ...js.configs.recommended.rules, 'no-unused-vars': unusedVars },
   },
 
   // Config and test files
@@ -76,7 +80,7 @@ export default [
       sourceType: 'module',
       globals: { ...globals.node, ...globals.browser, ...globals.vitest },
     },
-    rules: { 'no-unused-vars': unusedVars },
+    rules: { ...js.configs.recommended.rules, 'no-unused-vars': unusedVars },
   },
 
   prettier,

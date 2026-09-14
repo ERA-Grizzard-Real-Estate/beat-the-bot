@@ -77,10 +77,20 @@ Active:
 
 | Path | What it is |
 |---|---|
-| `src/main.jsx` | React root, renders `App` in StrictMode |
-| `src/App.jsx` | **The entire application.** 1686 lines. Phase machine, all 14 screens, all game logic, all CSS |
+| `src/main.jsx` | React root, renders `App` in StrictMode; imports the stylesheets |
+| `src/App.jsx` | Router and providers only, 20 lines. `/` and `/gameshow` both render the game show |
+| `src/routes/GameShow.jsx` | Lays out screens from `useGameShow`. No logic |
+| `src/game/useGameShow.js` | **The phase machine and game state.** The file to read first |
+| `src/game/useGrading.js` | The grading and reveal stage, and the state only it touches |
+| `src/game/useSoundCheck.js` | Pre-game speaker and mic check |
+| `src/game/phases.js` · `config.js` | `PHASE`, `getRotatedOrder`; roster bounds |
+| `src/components/screens/` | The 14 screens, grouped by stage. They take the whole `game` object |
+| `src/hooks/useAudioRecorder.js` | Recorder plus live Web Speech transcription |
+| `src/lib/api.js` | **Every call to `/api` goes through here.** Add auth in one place |
+| `src/styles/` | `tokens.css` and `global.css`, extracted from the old CSS const |
 | `src/hooks/useElevenLabs.js` | `speakText`, `stopSpeaking`, `transcribeAudio`, voice IDs |
-| `src/hooks/useScoring.js` | Rex script lines + `scoreResponse`, `scoreRound`, `getRexBanter` (thin fetch wrappers over `/api/score`) |
+| `src/game/rexScript.js` | Rex's line banks and getters. Pure, no network |
+| `src/game/scoring.js` | `scoreResponse`, `scoreRound`, `getRexBanter` over `/api/score` |
 | `src/data/gamePacks.js` | `GAME_PACKS` — 4 categories, 30 objections. Generated from the JSON library, not hand-authored |
 | `api/score.js` | Serverless scorer. Holds the live rubric. Three modes: single, batch, banter |
 | `api/voice/speak.js` | ElevenLabs TTS proxy. **Holds the only copy of the voice IDs** and resolves a role to one |
@@ -208,5 +218,9 @@ CI runs `npm ci` against the lockfile, and only CI catches a stale lockfile.
 - Commit messages: imperative, one line, no scope prefix. Match the existing log
   ("Set contestant roster to 3 players", "Cap scores at 9 — never award a 10").
 - Update `CHANGELOG.md` for anything a person would notice.
-- Prefer editing `src/App.jsx` surgically over rewriting it, until Phase 1 of the
-  handover spec splits it up on purpose.
+- Phase 1 landed 2026-09-11: `src/App.jsx` is split. Put new game logic in
+  `game/`, new screens in `components/screens/`, and never reach for `fetch`
+  directly — go through `lib/api.js`.
+- **Do not put a `rules` key after `...js.configs.recommended` in
+  `eslint.config.js`.** It replaces that object's rules wholesale and silently
+  disables `no-undef`. That bug hid 18 real errors until 2026-09-11.

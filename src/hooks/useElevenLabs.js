@@ -1,3 +1,5 @@
+import { postJsonForBlob, postBlobForJson } from "../lib/api";
+
 // Voice playback and transcription, both proxied through /api/voice/*.
 //
 // There is no API key in this file and none in the browser. The ElevenLabs key
@@ -35,23 +37,12 @@ const VOICE_ROLES = ["rex", "coach", "character"];
 export async function speakText(text, voice = "rex", packId = null, speed = 1.15) {
   const role = VOICE_ROLES.includes(voice) ? voice : "rex";
   try {
-    const response = await fetch("/api/voice/speak", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text, voice: role, packId, speed }),
+    const audioBlob = await postJsonForBlob("/api/voice/speak", {
+      text,
+      voice: role,
+      packId,
+      speed,
     });
-
-    if (!response.ok) {
-      let detail = "";
-      try {
-        detail = (await response.json())?.error || "";
-      } catch {
-        detail = "";
-      }
-      throw new Error(`Voice proxy ${response.status}${detail ? `: ${detail}` : ""}`);
-    }
-
-    const audioBlob = await response.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     _currentAudio = audio;
@@ -83,26 +74,14 @@ export async function transcribeAudio(audioBlob) {
   // Try the server proxy first. Audio is sent as a raw body, transcribed, and
   // discarded server-side — it is never stored.
   try {
-    const response = await fetch("/api/voice/transcribe", {
-      method: "POST",
-      headers: { "content-type": audioBlob.type || "audio/webm" },
-      body: audioBlob,
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const text = (data?.text || "").trim();
-      if (text.length > 0) return text;
-      console.warn("Transcription came back empty; falling back to browser STT.");
-    } else {
-      let detail = "";
-      try {
-        detail = (await response.json())?.error || "";
-      } catch {
-        detail = "";
-      }
-      console.warn("Voice proxy STT failed:", response.status, detail);
-    }
+    const data = await postBlobForJson(
+      "/api/voice/transcribe",
+      audioBlob,
+      audioBlob.type || "audio/webm"
+    );
+    const text = (data?.text || "").trim();
+    if (text.length > 0) return text;
+    console.warn("Transcription came back empty; falling back to browser STT.");
   } catch (err) {
     console.warn("Voice proxy STT error:", err);
   }
@@ -155,34 +134,4 @@ function transcribeWithBrowser(audioBlob) {
     recognition.start();
     audio.play();
   });
-}
-
-export function useAudioRecorder() {
-  let mediaRecorder = null;
-  let audioChunks = [];
-
-  const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunks.push(e.data);
-    };
-    mediaRecorder.start();
-    return mediaRecorder;
-  };
-
-  const stopRecording = () => {
-    return new Promise((resolve) => {
-      if (!mediaRecorder) return resolve(null);
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunks, { type: "audio/webm" });
-        resolve(blob);
-      };
-      mediaRecorder.stop();
-      mediaRecorder.stream.getTracks().forEach((t) => t.stop());
-    });
-  };
-
-  return { startRecording, stopRecording };
 }

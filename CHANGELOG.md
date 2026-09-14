@@ -1,5 +1,58 @@
 # Beat The Bot — Changelog & Ops Notes
 
+## 2026-09-11 (Phase 1 — src/App.jsx split up)
+
+Pure refactor. **Zero behavior change.** `src/App.jsx` goes from 1771 lines to
+20; the largest file in `src/` is now 345.
+
+```
+src/App.jsx            router and providers only
+  routes/GameShow.jsx  lays out screens from the hook
+  game/                phases, config, useGameShow, useGrading,
+                       useSoundCheck, rexScript, scoring
+  components/          Particle, ScoreBar, PlayerCard, RouletteReel
+    screens/           the 14 screens, grouped by stage
+  hooks/               useAudioRecorder, useElevenLabs
+  lib/api.js           the one place the client calls /api
+  styles/              tokens.css, global.css
+```
+
+- The CSS template literal became real stylesheets. The Google Fonts `@import`
+  moved into the `<link>` in `index.html`, because a bundled `@import` that is
+  not the first rule is ignored by browsers.
+- `react-router-dom` added. Only the routes that exist are mounted — `/` and
+  `/gameshow`. The spec's `/login`, `/practice`, `/admin` and `/dashboard` get
+  added by the phases that build them rather than landing as empty stubs.
+- Every `fetch` now goes through `lib/api.js`, so Phase 2 has one place to
+  attach the session and handle 401s.
+- Deleted the dead `useAudioRecorder` export from `hooks/useElevenLabs.js`.
+
+### A real defect found in the Phase 0 ESLint config
+
+`eslint.config.js` had a `rules` key **after** `...js.configs.recommended`,
+which replaced that object's rules wholesale. **`eslint:recommended` — including
+`no-undef` — was never active on `src/`.** Lint had been quietly weaker than it
+looked since Phase 0.
+
+Merging the rules properly immediately surfaced 18 genuine undefined references
+this refactor had introduced, including one that blanked the page. All fixed.
+Worth knowing: a green lint run before today did not mean what it appeared to.
+
+### Verified
+
+Computed styles for every element on the splash are identical to production,
+compared element by element after animations settle. The whole-page hash is
+timing-sensitive to the fade-ins, so the settled per-element comparison is the
+one to trust.
+
+The game was driven through player setup, registration, category select, the
+roulette, Rex's intro, the objection read, and into the response screen with
+the recording control present — at 1, 2, 3 and 4 players. `/gameshow` renders
+the same as `/`.
+
+**Not verified:** scoring, the reveals, round end and the champion screen still
+need a real microphone and live keys. Those are behind the GATE.
+
 ## 2026-09-09 (choose 1-4 players at the start of a game)
 
 The roster size is no longer a hardcoded constant. A new setup screen between

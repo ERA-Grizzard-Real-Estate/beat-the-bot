@@ -1,0 +1,23 @@
+/* Design tokens and the global reset.
+   Extracted verbatim from the CSS template literal that used to live at the
+   bottom of src/App.jsx. Fonts are loaded by the <link> in index.html. */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --red: #C8102E;
+    --red-dark: #a00d24;
+    --navy: #0B3279;
+    --navy-dark: #071f4d;
+    --navy-mid: #12317a;
+    --cream: #f5f0e8;
+    --dark: #060e1f;
+    --dark2: #0a1630;
+    --dark3: #0f1f42;
+    --border: rgba(201,168,76,0.2);
+    --text: #f5f0e8;
+    --sub: rgba(245,240,232,0.55);
+    --teal: #c9a84c;
+    --orange: #C8102E;
+  }
