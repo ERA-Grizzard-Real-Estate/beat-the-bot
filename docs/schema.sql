@@ -179,6 +179,29 @@ CREATE INDEX attempts_challenge_idx     ON attempts (challenge_id);
 CREATE INDEX attempts_session_idx       ON attempts (game_session_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Login events — who signed in, and when
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- Added 2026-09-14 at Gus's request: he wants to see who has been logging in
+-- and how often, which users.last_seen_at cannot answer because it holds a
+-- single timestamp and no history.
+--
+-- One row per successful sign-in, written by the auth callback in Phase 2.
+-- Deliberately thin: no IP address and no user agent. This is personnel-
+-- adjacent data about named agents, and a count of sign-ins answers the
+-- question without building a surveillance log. Do not add device or location
+-- columns without asking Gus first.
+
+CREATE TABLE login_events (
+  id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id            UUID NOT NULL REFERENCES users (id),
+  occurred_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX login_events_user_time_idx ON login_events (user_id, occurred_at DESC);
+CREATE INDEX login_events_time_idx      ON login_events (occurred_at DESC);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Rate limiting — per user, per endpoint, fixed window
 -- ─────────────────────────────────────────────────────────────────────────────
 
